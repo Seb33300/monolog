@@ -14,75 +14,61 @@ namespace Monolog\Handler;
 use Monolog\Formatter\FormatterInterface;
 use Monolog\Level;
 use Monolog\Utils;
-use Monolog\Handler\Slack\SlackRecord;
+use Monolog\Handler\Teams\TeamsRecord;
 use Monolog\LogRecord;
 
 /**
- * Sends notifications through Slack Webhooks
+ * Sends notifications through MS Teams Webhooks
  *
- * @author Haralan Dobrev <hkdobrev@gmail.com>
- * @see    https://api.slack.com/incoming-webhooks
+ * @author Sébastien Alfaiate <s.alfaiate@webarea.fr>
+ * @see    https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/add-incoming-webhook
+ * @see    https://support.microsoft.com/office/create-incoming-webhooks-with-workflows-for-microsoft-teams-8ae491c7-0394-4861-ba59-055e33f75498
  */
-class SlackWebhookHandler extends AbstractProcessingHandler
+class TeamsWebhookHandler extends AbstractProcessingHandler
 {
     /**
-     * Slack Webhook token
+     * MS Teams Webhook URL.
      *
      * @var non-empty-string
      */
     private string $webhookUrl;
 
     /**
-     * Instance of the SlackRecord util class preparing data for Slack API.
+     * Instance of the TeamsRecord util class preparing data for MS Teams API.
      */
-    private SlackRecord $slackRecord;
+    private TeamsRecord $teamsRecord;
 
     /**
-     * @param non-empty-string $webhookUrl             Slack Webhook URL
-     * @param string|null $channel                Slack channel (encoded ID or name)
-     * @param string|null $username               Name of a bot
-     * @param bool        $useAttachment          Whether the message should be added to Slack as attachment (plain text otherwise)
-     * @param string|null $iconEmoji              The emoji name to use (or null)
-     * @param bool        $useShortAttachment     Whether the context/extra messages added to Slack as attachments are in a short style
-     * @param bool        $includeContextAndExtra Whether the attachment should include context and extra data
-     * @param string[]    $excludeFields          Dot separated list of fields to exclude from Slack message. E.g. ['context.field1', 'extra.field2']
+     * @param non-empty-string $webhookUrl             MS Teams Webhook URL
+     * @param bool             $includeContextAndExtra Whether the card should include context and extra data
+     * @param string[]         $excludeFields          Dot separated list of fields to exclude from MS Teams message. E.g. ['context.field1', 'extra.field2']
      *
      * @throws MissingExtensionException If the curl extension is missing
      */
     public function __construct(
         string $webhookUrl,
-        ?string $channel = null,
-        ?string $username = null,
-        bool $useAttachment = true,
-        ?string $iconEmoji = null,
-        bool $useShortAttachment = false,
         bool $includeContextAndExtra = false,
         $level = Level::Critical,
         bool $bubble = true,
         array $excludeFields = []
     ) {
         if (!\extension_loaded('curl')) {
-            throw new MissingExtensionException('The curl extension is needed to use the SlackWebhookHandler');
+            throw new MissingExtensionException('The curl extension is needed to use the TeamsWebhookHandler');
         }
 
         parent::__construct($level, $bubble);
 
         $this->webhookUrl = $webhookUrl;
 
-        $this->slackRecord = new SlackRecord(
-            $channel,
-            $username,
-            $useAttachment,
-            $iconEmoji,
-            $useShortAttachment,
+        $this->teamsRecord = new TeamsRecord(
             $includeContextAndExtra,
             $excludeFields
         );
     }
 
-    public function getSlackRecord(): SlackRecord
+    public function getTeamsRecord(): TeamsRecord
     {
-        return $this->slackRecord;
+        return $this->teamsRecord;
     }
 
     public function getWebhookUrl(): string
@@ -95,7 +81,7 @@ class SlackWebhookHandler extends AbstractProcessingHandler
      */
     protected function write(LogRecord $record): void
     {
-        $postData = $this->slackRecord->getSlackData($record);
+        $postData = $this->teamsRecord->getAdaptiveCardPayload($record);
         $postString = Utils::jsonEncode($postData);
 
         $ch = curl_init();
@@ -115,7 +101,7 @@ class SlackWebhookHandler extends AbstractProcessingHandler
     public function setFormatter(FormatterInterface $formatter): HandlerInterface
     {
         parent::setFormatter($formatter);
-        $this->slackRecord->setFormatter($formatter);
+        $this->teamsRecord->setFormatter($formatter);
 
         return $this;
     }
@@ -123,7 +109,7 @@ class SlackWebhookHandler extends AbstractProcessingHandler
     public function getFormatter(): FormatterInterface
     {
         $formatter = parent::getFormatter();
-        $this->slackRecord->setFormatter($formatter);
+        $this->teamsRecord->setFormatter($formatter);
 
         return $formatter;
     }
